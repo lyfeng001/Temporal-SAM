@@ -2,21 +2,23 @@ import copy
 from typing import Optional, Any
 
 import torch as t
-from torch import nn,Tensor
+from torch import nn, Tensor
 import torch.nn.functional as F
 from torch.nn import Module
 from torch.nn import MultiheadAttention
 from torch.nn import ModuleList
 from torch.nn.init import xavier_uniform_
 from torch.nn import Dropout
-#from .attention import PAM_Module
+
+
+# from .attention import PAM_Module
 
 class Transformer(Module):
 
-
     def __init__(self, d_model: int = 512, nhead: int = 8, num_encoder_layers: int = 6,
                  num_decoder_layers: int = 6, dim_feedforward: int = 2048, dropout: float = 0.1,
-                 activation: str = "relu", custom_encoder: Optional[Any] = None, custom_decoder: Optional[Any] = None) -> None:
+                 activation: str = "relu", custom_encoder: Optional[Any] = None,
+                 custom_decoder: Optional[Any] = None) -> None:
         super(Transformer, self).__init__()
 
         if custom_encoder is not None:
@@ -38,11 +40,10 @@ class Transformer(Module):
         self.d_model = d_model
         self.nhead = nhead
 
-    def forward(self, src: Tensor , guide: Tensor, src_mask: Optional[Tensor] = None, tgt_mask: Optional[Tensor] = None,
+    def forward(self, src: Tensor, guide: Tensor, src_mask: Optional[Tensor] = None, tgt_mask: Optional[Tensor] = None,
                 memory_mask: Optional[Tensor] = None, src_key_padding_mask: Optional[Tensor] = None,
-                tgt_key_padding_mask: Optional[Tensor] = None, memory_key_padding_mask: Optional[Tensor] = None) -> Tensor:
-       
-       
+                tgt_key_padding_mask: Optional[Tensor] = None,
+                memory_key_padding_mask: Optional[Tensor] = None) -> Tensor:
 
         memory = self.encoder(src, mask=src_mask, src_key_padding_mask=src_key_padding_mask)
         output = self.decoder(guide, memory, tgt_mask=tgt_mask, memory_mask=memory_mask,
@@ -88,7 +89,8 @@ class TransformerEncoder(Module):
         self.num_layers = num_layers
         self.norm = norm
 
-    def forward(self, src: Tensor, mask: Optional[Tensor] = None, src_key_padding_mask: Optional[Tensor] = None) -> Tensor:
+    def forward(self, src: Tensor, mask: Optional[Tensor] = None,
+                src_key_padding_mask: Optional[Tensor] = None) -> Tensor:
         r"""Pass the input through the encoder layers in turn.
 
         Args:
@@ -162,6 +164,7 @@ class TransformerDecoder(Module):
 
         return output
 
+
 class TransformerEncoderLayer(Module):
     r"""TransformerEncoderLayer is made up of self-attn and feedforward network.
     This standard encoder layer is based on the paper "Attention Is All You Need".
@@ -188,8 +191,7 @@ class TransformerEncoderLayer(Module):
         self.self_attn = MultiheadAttention(d_model, nhead, dropout=dropout)
 
         # Implementation of Feedforward model
-    
-        
+
         self.linear1 = nn.Linear(d_model, dim_feedforward)
         self.dropout = Dropout(dropout)
         self.linear2 = nn.Linear(dim_feedforward, d_model)
@@ -199,21 +201,24 @@ class TransformerEncoderLayer(Module):
         self.dropout2 = Dropout(dropout)
 
         self.activation = _get_activation_fn(activation)
+
     def __setstate__(self, state):
         if 'activation' not in state:
             state['activation'] = F.relu
         super(TransformerEncoderLayer, self).__setstate__(state)
-    def forward(self, src: Tensor , src_mask: Optional[Tensor] = None, src_key_padding_mask: Optional[Tensor] = None) -> Tensor:
-        
-        #input_feature=self.norm0(src+srcc)
+
+    def forward(self, src: Tensor, src_mask: Optional[Tensor] = None,
+                src_key_padding_mask: Optional[Tensor] = None) -> Tensor:
+        # input_feature=self.norm0(src+srcc)
         src2 = self.self_attn(src, src, src, attn_mask=src_mask,
-                               key_padding_mask=src_key_padding_mask)[0]
+                              key_padding_mask=src_key_padding_mask)[0]
         src = src + self.dropout1(src2)
         src = self.norm1(src)
         src2 = self.linear2(self.dropout(self.activation(self.linear1(src))))
         src = src + self.dropout2(src2)
         src = self.norm2(src)
         return src
+
 
 class TransformerDecoderLayer(Module):
     r"""TransformerDecoderLayer is made up of self-attn, multi-head-attn and feedforward network.
@@ -241,24 +246,24 @@ class TransformerDecoderLayer(Module):
         super(TransformerDecoderLayer, self).__init__()
         self.self_attn = MultiheadAttention(d_model, nhead, dropout=dropout)
         self.mask = MultiheadAttention(d_model, nhead, dropout=dropout)
-        #self.conv9 = nn.Sequential(
-         #       nn.Conv2d(192, 192,  kernel_size=3, stride=1,padding=1),
-          #      nn.GroupNorm(32,192),
-           #     nn.ReLU(inplace=True),
-            #    nn.Conv2d(192, 192,  kernel_size=3, stride=1,padding=1),
-             #   )
+        # self.conv9 = nn.Sequential(
+        #       nn.Conv2d(192, 192,  kernel_size=3, stride=1,padding=1),
+        #      nn.GroupNorm(32,192),
+        #     nn.ReLU(inplace=True),
+        #    nn.Conv2d(192, 192,  kernel_size=3, stride=1,padding=1),
+        #   )
         self.conv1 = nn.Sequential(
-               nn.ConvTranspose2d(192*2, 192,  kernel_size=1, stride=1),
-               nn.BatchNorm2d(192),
-               nn.ReLU(inplace=True),
-                )
+            nn.ConvTranspose2d(192 * 2, 192, kernel_size=1, stride=1),
+            nn.BatchNorm2d(192),
+            nn.ReLU(inplace=True),
+        )
         # Implementation of Feedforward model
         self.linear1 = nn.Linear(d_model, dim_feedforward)
         self.dropout = Dropout(dropout)
         self.linear2 = nn.Linear(dim_feedforward, d_model)
         self.linear3 = nn.Linear(d_model, dim_feedforward)
         self.linear4 = nn.Linear(dim_feedforward, d_model)
-        
+
         self.norm1 = nn.LayerNorm(d_model)
         self.norm2 = nn.LayerNorm(d_model)
         self.norm3 = nn.LayerNorm(d_model)
@@ -272,18 +277,19 @@ class TransformerDecoderLayer(Module):
         self.activation2 = _get_activation_fn(activation)
         for modules in [self.conv1]:
             for l in modules.modules():
-               if isinstance(l, nn.Conv2d):
+                if isinstance(l, nn.Conv2d):
                     t.nn.init.normal_(l.weight, std=0.01)
                     t.nn.init.constant_(l.bias, 0)
-
 
     def __setstate__(self, state):
         if 'activation' not in state:
             state['activation'] = F.relu
         super(TransformerDecoderLayer, self).__setstate__(state)
-   
-    def forward(self, guide: Tensor, memory: Tensor, tgt_mask: Optional[Tensor] = None, memory_mask: Optional[Tensor] = None,
-                tgt_key_padding_mask: Optional[Tensor] = None, memory_key_padding_mask: Optional[Tensor] = None) -> Tensor:
+
+    def forward(self, guide: Tensor, memory: Tensor, tgt_mask: Optional[Tensor] = None,
+                memory_mask: Optional[Tensor] = None,
+                tgt_key_padding_mask: Optional[Tensor] = None,
+                memory_key_padding_mask: Optional[Tensor] = None) -> Tensor:
         r"""Pass the inputs (and mask) through the decoder layer.
 
         Args:
@@ -297,21 +303,21 @@ class TransformerDecoderLayer(Module):
         Shape:
             see the docs in Transformer class.
         """
-        b,c,s = guide.permute(1,2,0).size()
+        b, c, s = guide.permute(1, 2, 0).size()
         guide2 = self.self_attn(guide, guide, guide, attn_mask=tgt_mask,
-                              key_padding_mask=tgt_key_padding_mask)[0]
+                                key_padding_mask=tgt_key_padding_mask)[0]
         guide = guide + self.dropout1(guide2)
         guide = self.norm1(guide)
-        
-        tgtzhuan=memory.permute(1,2,0).view(b,192,11,11)
-        guidezhuan=guide.permute(1,2,0).view(b,192,11,11)
-        map=self.conv1(t.cat((tgtzhuan,guidezhuan),1))
-        map=map.view(b,192,-1).permute(2, 0, 1)
-        tgt1 = memory*map
+
+        tgtzhuan = memory.permute(1, 2, 0).view(b, 192, 11, 11)
+        guidezhuan = guide.permute(1, 2, 0).view(b, 192, 11, 11)
+        map = self.conv1(t.cat((tgtzhuan, guidezhuan), 1))
+        map = map.view(b, 192, -1).permute(2, 0, 1)
+        tgt1 = memory * map
         tgt1 = self.norm4(tgt1)
         tgt11 = self.linear4(self.dropout4(self.activation2(self.linear3(tgt1))))
-        tgt2 = self.mask(tgt11,memory,memory, attn_mask=memory_mask,
-                                   key_padding_mask=memory_key_padding_mask)[0]
+        tgt2 = self.mask(tgt11, memory, memory, attn_mask=memory_mask,
+                         key_padding_mask=memory_key_padding_mask)[0]
         tgt = tgt11 + self.dropout2(tgt2)
         tgt = self.norm2(tgt)
         tgt2 = self.linear2(self.dropout(self.activation(self.linear1(tgt))))
@@ -331,4 +337,3 @@ def _get_activation_fn(activation):
         return F.gelu
 
     raise RuntimeError("activation should be relu/gelu, not {}".format(activation))
-

@@ -1,0 +1,7 @@
+
+pysot-master/training_dataset/coco/annotations_trainval2017/annotations/captions_train2017.json
+pysot-master/training_dataset/coco/annotations_trainval2017/annotations/captions_val2017.json
+pysot-master/training_dataset/coco/annotations_trainval2017/annotations/instances_train2017.json
+pysot-master/training_dataset/coco/annotations_trainval2017/annotations/instances_val2017.json
+pysot-master/training_dataset/coco/annotations_trainval2017/annotations/person_keypoints_train2017.json
+pysot-master/training_dataset/coco/annotations_trainval2017/annotations/person_keypoints_val2017.json
