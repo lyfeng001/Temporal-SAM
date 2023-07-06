@@ -10,6 +10,9 @@ from torch.nn import ModuleList
 from torch.nn.init import xavier_uniform_
 from torch.nn import Dropout
 
+from .common import LayerNorm2d
+
+
 
 # from .attention import PAM_Module
 
@@ -17,16 +20,12 @@ class Transformer(Module):
 
     def __init__(self, d_model: int = 512, nhead: int = 8, num_encoder_layers: int = 6,
                  num_decoder_layers: int = 6, dim_feedforward: int = 2048, dropout: float = 0.1,
-                 activation: str = "relu", custom_encoder: Optional[Any] = None,
+                 activation: str = "relu",
                  custom_decoder: Optional[Any] = None) -> None:
         super(Transformer, self).__init__()
 
-        if custom_encoder is not None:
-            self.encoder = custom_encoder
-        else:
-            encoder_layer = TransformerEncoderLayer(d_model, nhead, dim_feedforward, dropout, activation)
-            encoder_norm = nn.LayerNorm(d_model)
-            self.encoder = TransformerEncoder(encoder_layer, num_encoder_layers, encoder_norm)
+        self.prompt_encoder = PromptEncoder(prompt_in_chans= , embed_dim=)
+
 
         if custom_decoder is not None:
             self.decoder = custom_decoder
@@ -45,7 +44,8 @@ class Transformer(Module):
                 tgt_key_padding_mask: Optional[Tensor] = None,
                 memory_key_padding_mask: Optional[Tensor] = None) -> Tensor:
 
-        memory = self.encoder(src, mask=src_mask, src_key_padding_mask=src_key_padding_mask)
+        # memory = self.encoder(src, mask=src_mask, src_key_padding_mask=src_key_padding_mask)
+        memory = self.prompt_encoder(temporal_embedding=src)
         output = self.decoder(guide, memory, tgt_mask=tgt_mask, memory_mask=memory_mask,
                               tgt_key_padding_mask=tgt_key_padding_mask,
                               memory_key_padding_mask=memory_key_padding_mask)
@@ -65,6 +65,28 @@ class Transformer(Module):
         for p in self.parameters():
             if p.dim() > 1:
                 xavier_uniform_(p)
+
+class PromptEncoder(Module):
+    def __init__(self, prompt_in_chans: int, embed_dim: int) -> None:
+        super(PromptEncoder, self).__init__()
+
+        self.prompt_conv = nn.Sequential(
+            nn.Conv2d(1, prompt_in_chans // 4, kernel_size=2, stride=2),
+            LayerNorm2d(prompt_in_chans // 4),
+            nn.ReLU(),
+            nn.Conv2d(prompt_in_chans // 4, prompt_in_chans, kernel_size=2, stride=2),
+            LayerNorm2d(prompt_in_chans),
+            nn.ReLU(),
+            nn.Conv2d(prompt_in_chans, embed_dim, kernel_size=1),)
+
+    def forward(self, temporal_embedding: Tensor) -> Tensor:
+
+        output_prompt = self.prompt_conv(temporal_embedding)
+
+        return output_prompt
+
+
+
 
 
 class TransformerEncoder(Module):
